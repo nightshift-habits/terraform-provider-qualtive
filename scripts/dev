@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+#
+# Builds the provider into ./bin and writes a repo-local CLI config with
+# dev_overrides, so OpenTofu/Terraform use the local build instead of the registry.
+#
+#   scripts/dev                                   build and print the export line
+#   scripts/dev tofu -chdir=playground plan       build, then run a command with the config
+#
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+bin_dir="$root/bin"
+config_file="$root/.dev/terraform.rc"
+
+mkdir -p "$bin_dir" "$(dirname "$config_file")"
+go build -C "$root" -o "$bin_dir/terraform-provider-qualtive" .
+
+cat >"$config_file" <<EOF
+provider_installation {
+  dev_overrides {
+    "registry.opentofu.org/nightshift-habits/qualtive"  = "$bin_dir"
+    "registry.terraform.io/nightshift-habits/qualtive" = "$bin_dir"
+  }
+  direct {}
+}
+EOF
+
+if [[ $# -eq 0 ]]; then
+  echo "Built $bin_dir/terraform-provider-qualtive"
+  echo "export TF_CLI_CONFIG_FILE=\"$config_file\""
+  exit 0
+fi
+
+TF_CLI_CONFIG_FILE="$config_file" exec "$@"
